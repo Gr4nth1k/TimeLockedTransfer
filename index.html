@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeLock — Schedule OZONE Transfers</title>
+  <meta name="description" content="Lock and schedule native OZONE coin transfers on Ozone Mainnet. Non-custodial, decentralized, on-chain." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:       #08090b;
+      --bg2:      #0e1014;
+      --bg3:      #141720;
+      --border:   rgba(255,255,255,0.07);
+      --border2:  rgba(255,255,255,0.12);
+      --accent:   #5de0c8;
+      --accent2:  #a78bfa;
+      --warn:     #f59e0b;
+      --err:      #f87171;
+      --success:  #5de0c8;
+      --text:     #e8eaf0;
+      --muted:    #6b7280;
+      --muted2:   #9ca3af;
+      --card:     #0e1014;
+      --font-d:   'Instrument Serif', Georgia, serif;
+      --font-m:   'Geist Mono', 'Fira Mono', monospace;
+      --r:        10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-m);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* Glow top-left */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -300px; left: -200px;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(93,224,200,0.04) 0%, transparent 65%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
+
+    /* ── NAV ── */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+      position: sticky; top: 0;
+      background: rgba(8,9,11,0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      z-index: 200;
+    }
+
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text);
+      font-family: var(--font-d);
+      font-size: 1.1rem;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-icon {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, rgba(93,224,200,0.15), rgba(167,139,250,0.15));
+      border: 1px solid rgba(93,224,200,0.3);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .nav-links { display: flex; align-items: center; gap: 2px; }
+
+    .nav-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: color 0.18s, background 0.18s;
+      letter-spacing: 0.3px;
+    }
+
+    .nav-link:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+    .btn-connect {
+      background: rgba(93,224,200,0.1);
+      border: 1px solid rgba(93,224,200,0.3);
+      color: var(--accent);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-family: var(--font-m);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.18s;
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-connect:hover { background: rgba(93,224,200,0.18); }
+    .btn-connect.connected { background: rgba(93,224,200,0.08); border-color: rgba(93,224,200,0.2); color: var(--muted2); }
+
+    /* ── NETWORK WARN ── */
+    .network-warn {
+      background: rgba(245,158,11,0.07);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: var(--r);
+      padding: 12px 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--warn);
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .network-warn.show { display: flex; }
+    .btn-switch {
+      background: rgba(245,158,11,0.15);
+      border: 1px solid rgba(245,158,11,0.3);
+      color: var(--warn);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-family: var(--font-m);
+      font-size: 11px;
+      cursor: pointer;
+      margin-left: auto;
+      transition: background 0.18s;
+    }
+    .btn-switch:hover { background: rgba(245,158,11,0.25); }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 72px 0 56px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(93,224,200,0.06);
+      border: 1px solid rgba(93,224,200,0.15);
+      padding: 5px 14px;
+      border-radius: 100px;
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 28px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .live-dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: livepulse 2s ease-in-out infinite;
+    }
+
+    @keyframes livepulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(93,224,200,0.4); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(93,224,200,0); }
+    }
+
+    h1 {
+      font-family: var(--font-d);
+      font-size: clamp(2.4rem, 6vw, 4.2rem);
+      font-weight: 400;
+      line-height: 1.08;
+      letter-spacing: -1px;
+      margin-bottom: 18px;
+      color: var(--text);
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .hero-sub {
+      font-size: 13px;
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto 44px;
+      line-height: 1.7;
+    }
+
+    .hero-stats {
+      display: flex; justify-content: center; gap: 0;
+      flex-wrap: wrap;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .stat {
+      flex: 1; min-width: 120px;
+      padding: 18px 20px;
+      border-right: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .stat:last-child { border-right: none; }
+
+    .stat-val {
+      font-family: var(--font-d);
+      font-size: 1.5rem;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-top: 4px;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .main-section { padding: 16px 0 80px; }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex; gap: 2px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 4px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      flex: 1; min-width: 110px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 14px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-m);
+      font-size: 12px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.18s;
+      white-space: nowrap;
+      letter-spacing: 0.2px;
+    }
+
+    .tab:hover { color: var(--text); }
+
+    .tab.active {
+      background: var(--bg3);
+      color: var(--text);
+      border: 1px solid var(--border2);
+    }
+
+    .tab svg { flex-shrink: 0; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 24px;
+    }
+
+    .card-title {
+      font-family: var(--font-d);
+      font-size: 1.1rem;
+      font-weight: 400;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .card-desc { font-size: 12px; color: var(--muted); margin-bottom: 22px; }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    input, select {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: var(--text);
+      font-family: var(--font-m);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.18s, box-shadow 0.18s;
+      -webkit-appearance: none;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(93,224,200,0.4);
+      box-shadow: 0 0 0 3px rgba(93,224,200,0.06);
+    }
+
+    input::placeholder { color: var(--muted); }
+    select option { background: var(--bg3); }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    /* ── FEE BOX ── */
+    .fee-box {
+      background: rgba(93,224,200,0.04);
+      border: 1px solid rgba(93,224,200,0.12);
+      border-radius: 8px;
+      padding: 14px;
+      margin: 16px 0;
+      display: none;
+    }
+    .fee-box.show { display: block; }
+
+    .fee-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; padding: 4px 0;
+    }
+    .fee-row .lbl { color: var(--muted); }
+    .fee-row .val { color: var(--text); }
+    .fee-row.total .val { color: var(--accent); font-size: 13px; }
+    .fee-div { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font-m);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.18s;
+      text-decoration: none;
+      white-space: nowrap;
+      letter-spacing: 0.2px;
+    }
+
+    .btn-full { width: 100%; }
+
+    .btn-primary {
+      background: rgba(93,224,200,0.12);
+      border: 1px solid rgba(93,224,200,0.3);
+      color: var(--accent);
+    }
+    .btn-primary:hover:not(:disabled) { background: rgba(93,224,200,0.2); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-danger {
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.25);
+      color: var(--err);
+    }
+    .btn-danger:hover { background: rgba(248,113,113,0.14); }
+
+    .btn-success {
+      background: rgba(93,224,200,0.08);
+      border: 1px solid rgba(93,224,200,0.25);
+      color: var(--success);
+    }
+    .btn-success:hover { background: rgba(93,224,200,0.14); }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--muted2);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+
+    .btn-sm { padding: 6px 12px; font-size: 11px; border-radius: 6px; }
+
+    /* ── ALERTS ── */
+    .alert {
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      margin-top: 12px;
+      display: none;
+      line-height: 1.5;
+    }
+    .alert.show { display: block; }
+    .alert-success { background: rgba(93,224,200,0.07); border: 1px solid rgba(93,224,200,0.2); color: var(--success); }
+    .alert-error   { background: rgba(248,113,113,0.07); border: 1px solid rgba(248,113,113,0.2); color: var(--err); }
+    .alert-info    { background: rgba(93,224,200,0.05); border: 1px solid rgba(93,224,200,0.15); color: var(--muted2); }
+    .alert-warning { background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.2); color: var(--warn); }
+
+    /* ── PANELS ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── TRANSFER LIST ── */
+    .transfer-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .transfer-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 16px 18px;
+      transition: border-color 0.18s;
+    }
+
+    .transfer-card:hover { border-color: var(--border2); }
+
+    .transfer-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+
+    .transfer-id { font-size: 11px; color: var(--muted); }
+
+    .status-badge {
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .status-pending   { background: rgba(245,158,11,0.1);  color: var(--warn);    border: 1px solid rgba(245,158,11,0.2); }
+    .status-claimed   { background: rgba(93,224,200,0.1);  color: var(--success); border: 1px solid rgba(93,224,200,0.2); }
+    .status-cancelled { background: rgba(248,113,113,0.1); color: var(--err);     border: 1px solid rgba(248,113,113,0.2); }
+
+    .transfer-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .meta-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 3px; }
+    .meta-value { font-size: 12px; color: var(--text); word-break: break-all; }
+    .meta-value.hl { color: var(--accent); }
+
+    .transfer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── SIDEBAR ── */
+    .sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+    .info-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px 20px;
+    }
+
+    .info-card-title {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
+    }
+
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .info-row:last-child { border-bottom: none; }
+    .info-row .key { color: var(--muted); }
+    .info-row .val { color: var(--text); }
+    .info-row .val.accent { color: var(--accent); }
+
+    /* ── HOW IT WORKS ── */
+    .how-section { margin-top: 72px; }
+
+    .section-head { text-align: center; margin-bottom: 36px; }
+
+    .section-title {
+      font-family: var(--font-d);
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 400;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .section-sub { font-size: 13px; color: var(--muted); }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+    }
+
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 22px 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .step::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.4;
+    }
+
+    .step-num {
+      font-family: var(--font-d);
+      font-size: 2.2rem;
+      color: rgba(93,224,200,0.1);
+      line-height: 1;
+      margin-bottom: 14px;
+    }
+
+    .step-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+    .step-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 36px 0;
+      margin-top: 80px;
+    }
+
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 20px; flex-wrap: wrap;
+    }
+
+    .footer-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .footer-right { display: flex; gap: 16px; flex-wrap: wrap; }
+
+    .footer-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      transition: color 0.18s;
+    }
+
+    .footer-link:hover { color: var(--text); }
+
+    .contract-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 5px 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .contract-pill a { color: var(--accent); text-decoration: none; }
+    .contract-pill a:hover { text-decoration: underline; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 44px 20px;
+      color: var(--muted);
+    }
+
+    .empty-icon { margin-bottom: 12px; opacity: 0.4; display: flex; justify-content: center; }
+    .empty-text { font-size: 13px; }
+
+    /* ── SPINNER ── */
+    .spinner {
+      display: inline-block;
+      width: 13px; height: 13px;
+      border: 1.5px solid rgba(93,224,200,0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── TX LINK ── */
+    .tx-link { color: var(--accent); text-decoration: none; }
+    .tx-link:hover { text-decoration: underline; }
+
+    /* ── ADDR ── */
+    .addr { font-size: 11px; color: var(--muted); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 800px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .sidebar { order: -1; }
+      .input-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 48px 0 40px; }
+      .nav-links { display: none; }
+      .hero-stats { flex-direction: row; }
+      .stat { min-width: 90px; padding: 14px 12px; }
+      .steps { grid-template-columns: 1fr 1fr; }
+      .card { padding: 18px; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (max-width: 380px) {
+      .steps { grid-template-columns: 1fr; }
+      .tab { min-width: 90px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="container">
+      <div class="nav-inner">
+        <a href="#" class="logo">
+          <div class="logo-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="8" cy="8" r="6.5" stroke="#5de0c8" stroke-width="1.2"/>
+              <path d="M8 4.5V8L10.5 10" stroke="#5de0c8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          TimeLock
+        </a>
+        <div class="nav-links">
+          <a href="#schedule" class="nav-link">Schedule</a>
+          <a href="#my-transfers" class="nav-link">Transfers</a>
+          <a href="#how" class="nav-link">How It Works</a>
+          <a href="https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1" target="_blank" class="nav-link">Contract ↗</a>
+        </div>
+        <button class="btn-connect" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="network-warn" id="networkWarn">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+        <path d="M8 2L14 13H2L8 2Z" stroke="#f59e0b" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M8 6.5V9.5" stroke="#f59e0b" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="8" cy="11.5" r="0.7" fill="#f59e0b"/>
+      </svg>
+      Wrong network. Please switch to <strong>&nbsp;Ozone Mainnet (Chain ID 10121)</strong>
+      <button class="btn-switch" onclick="switchNetwork()">Switch Network</button>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge">
+        <span class="live-dot"></span>
+        Live on Ozone Mainnet
+      </div>
+      <h1>Schedule Future<br/><em>OZONE Transfers</em></h1>
+      <p class="hero-sub">Lock native OZONE coins for any recipient with a time-release mechanism. Non-custodial, decentralized, and running on-chain 24/7.</p>
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-val" id="statTotal">—</div>
+          <div class="stat-label">Transfers</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="statBalance">—</div>
+          <div class="stat-label">OZONE Locked</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">1%</div>
+          <div class="stat-label">Service Fee</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">5yr</div>
+          <div class="stat-label">Max Lock</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN APP -->
+  <section id="schedule" class="main-section">
+    <div class="container">
+      <div class="main-grid">
+
+        <!-- LEFT -->
+        <div>
+          <div class="tabs">
+            <button class="tab active" onclick="switchTab('schedule-tab', this)">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.1"/>
+                <path d="M6.5 3.5V6.5L8.5 8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+              </svg>
+              Schedule
+            </button>
+            <button class="tab" onclick="switchTab('sent-tab', this)">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 10.5L11 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                <path d="M11 2H5M11 2V8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Sent
+            </button>
+            <button class="tab" onclick="switchTab('received-tab', this)">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11 2.5L2 11" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                <path d="M2 11H8M2 11V5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Received
+            </button>
+            <button class="tab" onclick="switchTab('lookup-tab', this)">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.1"/>
+                <path d="M9 9L11.5 11.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+              </svg>
+              Lookup
+            </button>
+          </div>
+
+          <!-- SCHEDULE PANEL -->
+          <div class="panel active" id="schedule-tab">
+            <div class="card">
+              <div class="card-title">Schedule a Transfer</div>
+              <div class="card-desc">Send OZONE to a recipient that unlocks at your chosen date and time.</div>
+
+              <div class="form-group">
+                <label>Recipient Address</label>
+                <input type="text" id="recipient" placeholder="0x..." oninput="updateFeePreview()" autocomplete="off" />
+              </div>
+
+              <div class="input-row">
+                <div class="form-group">
+                  <label>Amount (OZONE)</label>
+                  <input type="number" id="amount" placeholder="0.00" min="0" step="0.001" oninput="updateFeePreview()" />
+                </div>
+                <div class="form-group">
+                  <label>Unlock Date &amp; Time</label>
+                  <input type="datetime-local" id="unlockTime" oninput="updateFeePreview()" />
+                </div>
+              </div>
+
+              <div class="fee-box" id="feeBox">
+                <div class="fee-row">
+                  <span class="lbl">You send</span>
+                  <span class="val" id="feeGross">—</span>
+                </div>
+                <div class="fee-row">
+                  <span class="lbl">Service fee (1%)</span>
+                  <span class="val" style="color:#f87171" id="feeFee">—</span>
+                </div>
+                <hr class="fee-div"/>
+                <div class="fee-row total">
+                  <span class="lbl">Recipient receives</span>
+                  <span class="val" id="feeNet">—</span>
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-full" id="scheduleBtn" onclick="scheduleTransfer()" disabled>
+                Connect wallet to continue
+              </button>
+              <div class="alert" id="scheduleAlert"></div>
+            </div>
+          </div>
+
+          <!-- SENT PANEL -->
+          <div class="panel" id="sent-tab">
+            <div class="card">
+              <div class="card-title">Transfers You Sent</div>
+              <div class="card-desc">View, cancel, or track all transfers you have scheduled.</div>
+              <div id="sentList">
+                <div class="empty-state">
+                  <div class="empty-icon">
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 29L30 6" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M30 6H14M30 6V22" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <div class="empty-text">Connect your wallet to see sent transfers</div>
+                </div>
+              </div>
+              <div class="alert" id="sentAlert"></div>
+            </div>
+          </div>
+
+          <!-- RECEIVED PANEL -->
+          <div class="panel" id="received-tab">
+            <div class="card">
+              <div class="card-title">Transfers Coming to You</div>
+              <div class="card-desc">Claim unlocked OZONE sent to your address.</div>
+              <div id="receivedList">
+                <div class="empty-state">
+                  <div class="empty-icon">
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M30 6L6 30" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M6 30H22M6 30V14" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <div class="empty-text">Connect your wallet to see incoming transfers</div>
+                </div>
+              </div>
+              <div class="alert" id="receivedAlert"></div>
+            </div>
+          </div>
+
+          <!-- LOOKUP PANEL -->
+          <div class="panel" id="lookup-tab">
+            <div class="card">
+              <div class="card-title">Lookup Transfer by ID</div>
+              <div class="card-desc">Enter any transfer ID to see its full details.</div>
+              <div class="input-row" style="align-items:end;">
+                <div class="form-group" style="margin:0">
+                  <label>Transfer ID</label>
+                  <input type="number" id="lookupId" placeholder="0" min="0" />
+                </div>
+                <button class="btn btn-primary" style="height:42px;" onclick="lookupTransfer()">Search</button>
+              </div>
+              <div id="lookupResult" style="margin-top:16px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SIDEBAR -->
+        <div class="sidebar" id="my-transfers">
+
+          <div class="info-card">
+            <div class="info-card-title">Contract Details</div>
+            <div class="info-row"><span class="key">Network</span><span class="val accent">Ozone Mainnet</span></div>
+            <div class="info-row"><span class="key">Chain ID</span><span class="val">10121</span></div>
+            <div class="info-row"><span class="key">Service Fee</span><span class="val">1% per transfer</span></div>
+            <div class="info-row"><span class="key">Max Lock</span><span class="val">5 years</span></div>
+            <div class="info-row"><span class="key">Gas</span><span class="val">1 Gwei</span></div>
+            <div class="info-row"><span class="key">Verified</span><span class="val accent">OzoneScan ✓</span></div>
+            <div style="margin-top:14px;">
+              <a href="https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1" target="_blank" class="btn btn-ghost btn-full" style="font-size:12px;padding:10px;">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5.5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                  <path d="M8 1.5h3.5v3.5M11.5 1.5L6 7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                View on OzoneScan
+              </a>
+            </div>
+          </div>
+
+          <div class="info-card" id="walletCard" style="display:none;">
+            <div class="info-card-title">Your Wallet</div>
+            <div class="info-row"><span class="key">Address</span><span class="val accent addr" id="walletAddr">—</span></div>
+            <div class="info-row"><span class="key">Balance</span><span class="val" id="walletBalance">—</span></div>
+            <div class="info-row"><span class="key">Sent</span><span class="val" id="walletSent">—</span></div>
+            <div class="info-row"><span class="key">Received</span><span class="val" id="walletReceived">—</span></div>
+          </div>
+
+          <div class="info-card">
+            <div class="info-card-title">FAQ</div>
+            <div style="font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:14px;line-height:1.6;">
+              <div><span style="color:var(--text);">Is it non-custodial?</span><br/>Yes. Only the recipient can claim. Only the sender can cancel before unlock.</div>
+              <div><span style="color:var(--text);">Is the fee refundable?</span><br/>No. The 1% fee is taken at schedule time and is non-refundable.</div>
+              <div><span style="color:var(--text);">Can I cancel after unlock?</span><br/>No. After unlock, only the recipient can claim the funds.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- HOW IT WORKS -->
+      <div id="how" class="how-section">
+        <div class="section-head">
+          <div class="section-title">How It Works</div>
+          <div class="section-sub">Four simple steps to schedule a time-locked OZONE transfer</div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">01</div>
+            <div class="step-title">Connect Wallet</div>
+            <div class="step-desc">Connect MetaMask to Ozone Mainnet (Chain ID 10121) to get started.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">02</div>
+            <div class="step-title">Schedule Transfer</div>
+            <div class="step-desc">Enter recipient address, OZONE amount, and your chosen unlock date and time.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">03</div>
+            <div class="step-title">Funds Lock On-Chain</div>
+            <div class="step-desc">OZONE is locked in the smart contract until the unlock timestamp passes.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">04</div>
+            <div class="step-title">Recipient Claims</div>
+            <div class="step-desc">After unlock, the recipient visits this page and claims their OZONE in one click.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <a href="#" class="logo" style="font-size:1rem;">
+            <div class="logo-icon">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7" cy="7" r="5.5" stroke="#5de0c8" stroke-width="1.1"/>
+                <path d="M7 4V7L9 9" stroke="#5de0c8" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            TimeLock
+          </a>
+          <span class="contract-pill">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="1" width="8" height="8" rx="1.5" stroke="#6b7280" stroke-width="0.9"/>
+              <path d="M3 4h4M3 6h2.5" stroke="#6b7280" stroke-width="0.9" stroke-linecap="round"/>
+            </svg>
+            <a href="https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1" target="_blank">0x8554...2EBE1</a>
+          </span>
+        </div>
+        <div class="footer-right">
+          <a href="https://ozonescan.com" target="_blank" class="footer-link">OzoneScan ↗</a>
+          <a href="https://ozonechain.io" target="_blank" class="footer-link">Ozone Chain ↗</a>
+          <a href="https://github.com/yourusername/timelocked-transfer" target="_blank" class="footer-link">GitHub ↗</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const CONTRACT_ADDRESS = '0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1';
+const CHAIN_ID = 10121;
+const EXPLORER = 'https://ozonescan.com';
+const RPC_URL = 'https://node1.ozonechain.io';
+
+const ABI = [
+  "function scheduleTransfer(address recipient, uint256 unlockTime) payable returns (uint256)",
+  "function claimTransfer(uint256 transferId)",
+  "function cancelTransfer(uint256 transferId)",
+  "function getTransfer(uint256 transferId) view returns (uint256 id, address sender, address recipient, uint256 grossAmount, uint256 netAmount, uint256 fee, uint256 unlockTime, uint256 createdAt, uint8 status)",
+  "function getTransfersBySender(address sender) view returns (uint256[])",
+  "function getTransfersByRecipient(address recipient) view returns (uint256[])",
+  "function isClaimable(uint256 transferId) view returns (bool)",
+  "function isCancellable(uint256 transferId) view returns (bool)",
+  "function timeUntilUnlock(uint256 transferId) view returns (uint256)",
+  "function totalTransfers() view returns (uint256)",
+  "function contractBalance() view returns (uint256)",
+  "function previewFee(uint256 grossAmount) view returns (uint256 fee, uint256 netAmount)",
+  "function feeRecipient() view returns (address)",
+  "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
+  "function totalFeesCollected() view returns (uint256)",
+  "function FEE_BPS() view returns (uint256)",
+  "function BPS_DENOMINATOR() view returns (uint256)",
+  "function MAX_LOCK_DURATION() view returns (uint256)",
+  "function MIN_AMOUNT() view returns (uint256)",
+  "function transferOwnership(address newOwner)",
+  "function acceptOwnership()",
+  "function updateFeeRecipient(address newFeeRecipient)",
+  "event TransferScheduled(uint256 indexed transferId, address indexed sender, address indexed recipient, uint256 grossAmount, uint256 netAmount, uint256 fee, uint256 unlockTime)",
+  "event TransferClaimed(uint256 indexed transferId, address indexed recipient, uint256 netAmount, uint256 timestamp)",
+  "event TransferCancelled(uint256 indexed transferId, address indexed sender, uint256 refundAmount, uint256 timestamp)"
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let provider, signer, contract, userAddress;
+const STATUS_LABELS = ['Pending', 'Claimed', 'Cancelled'];
+const STATUS_CLASS  = ['status-pending', 'status-claimed', 'status-cancelled'];
+
+// ─── WALLET ───────────────────────────────────────────────────────────────────
+async function connectWallet() {
+  if (!window.ethereum) {
+    showAlert('scheduleAlert', 'MetaMask not found. Please install it from metamask.io', 'error');
+    return;
+  }
+  try {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    const accounts = await provider.send('eth_requestAccounts', []);
+    userAddress = accounts[0];
+    signer = await provider.getSigner();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+    await checkNetwork();
+    updateWalletUI();
+    loadStats();
+    loadSentTransfers();
+    loadReceivedTransfers();
+
+    window.ethereum.on('accountsChanged', a => {
+      if (a.length === 0) { location.reload(); return; }
+      userAddress = a[0];
+      updateWalletUI();
+      loadSentTransfers();
+      loadReceivedTransfers();
+    });
+    window.ethereum.on('chainChanged', () => location.reload());
+  } catch(e) {
+    showAlert('scheduleAlert', parseError(e), 'error');
+  }
+}
+
+async function checkNetwork() {
+  const net = await provider.getNetwork();
+  const warn = document.getElementById('networkWarn');
+  Number(net.chainId) !== CHAIN_ID ? warn.classList.add('show') : warn.classList.remove('show');
+}
+
+async function switchNetwork() {
+  try {
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: '0x' + CHAIN_ID.toString(16) }]
+    });
+  } catch(e) {
+    if (e.code === 4902) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: '0x' + CHAIN_ID.toString(16),
+          chainName: 'Ozone Mainnet',
+          nativeCurrency: { name: 'OZONE', symbol: 'OZONE', decimals: 18 },
+          rpcUrls: [RPC_URL],
+          blockExplorerUrls: [EXPLORER]
+        }]
+      });
+    }
+  }
+}
+
+function updateWalletUI() {
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = shortAddr(userAddress);
+  btn.classList.add('connected');
+
+  const schedBtn = document.getElementById('scheduleBtn');
+  schedBtn.disabled = false;
+  schedBtn.innerHTML = svgClock() + ' Schedule Transfer';
+
+  document.getElementById('walletCard').style.display = 'block';
+  document.getElementById('walletAddr').textContent = shortAddr(userAddress);
+
+  provider.getBalance(userAddress).then(b => {
+    document.getElementById('walletBalance').textContent =
+      parseFloat(ethers.formatEther(b)).toFixed(4) + ' OZONE';
+  });
+}
+
+function svgClock() {
+  return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 3.5V6.5L8.5 8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>`;
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  if (!contract) return;
+  try {
+    const [total, bal] = await Promise.all([
+      contract.totalTransfers(),
+      contract.contractBalance()
+    ]);
+    document.getElementById('statTotal').textContent = total.toString();
+    document.getElementById('statBalance').textContent =
+      parseFloat(ethers.formatEther(bal)).toFixed(2);
+  } catch(e) {}
+}
+
+// ─── FEE PREVIEW ──────────────────────────────────────────────────────────────
+function updateFeePreview() {
+  const amt = parseFloat(document.getElementById('amount').value);
+  const box = document.getElementById('feeBox');
+  if (!amt || amt <= 0) { box.classList.remove('show'); return; }
+  const fee = amt * 0.01;
+  const net = amt - fee;
+  document.getElementById('feeGross').textContent = amt.toFixed(6) + ' OZONE';
+  document.getElementById('feeFee').textContent   = fee.toFixed(6) + ' OZONE';
+  document.getElementById('feeNet').textContent   = net.toFixed(6) + ' OZONE';
+  box.classList.add('show');
+}
+
+// ─── SCHEDULE ─────────────────────────────────────────────────────────────────
+async function scheduleTransfer() {
+  if (!contract) { showAlert('scheduleAlert', 'Connect wallet first', 'error'); return; }
+
+  const recipient = document.getElementById('recipient').value.trim();
+  const amountStr = document.getElementById('amount').value;
+  const unlockDT  = document.getElementById('unlockTime').value;
+
+  if (!recipient || !amountStr || !unlockDT) {
+    showAlert('scheduleAlert', 'Please fill in all fields', 'error'); return;
+  }
+  if (!ethers.isAddress(recipient)) {
+    showAlert('scheduleAlert', 'Invalid recipient address', 'error'); return;
+  }
+
+  const amount     = parseFloat(amountStr);
+  const unlockTime = Math.floor(new Date(unlockDT).getTime() / 1000);
+  const now        = Math.floor(Date.now() / 1000);
+
+  if (unlockTime <= now) {
+    showAlert('scheduleAlert', 'Unlock time must be in the future', 'error'); return;
+  }
+  if (unlockTime > now + 5 * 365 * 24 * 3600) {
+    showAlert('scheduleAlert', 'Unlock time cannot exceed 5 years', 'error'); return;
+  }
+
+  const btn = document.getElementById('scheduleBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Confirm in MetaMask…`;
+
+  try {
+    const value = ethers.parseEther(amount.toString());
+    const tx = await contract.scheduleTransfer(recipient, unlockTime, { value });
+    btn.innerHTML = `<span class="spinner"></span> Waiting for confirmation…`;
+    const receipt = await tx.wait();
+
+    showAlert('scheduleAlert',
+      `Transfer scheduled. <a href="${EXPLORER}/tx/${receipt.hash}" target="_blank" class="tx-link">View transaction ↗</a>`,
+      'success'
+    );
+
+    document.getElementById('recipient').value = '';
+    document.getElementById('amount').value = '';
+    document.getElementById('unlockTime').value = '';
+    document.getElementById('feeBox').classList.remove('show');
+
+    loadStats();
+    loadSentTransfers();
+  } catch(e) {
+    showAlert('scheduleAlert', parseError(e), 'error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = svgClock() + ' Schedule Transfer';
+}
+
+// ─── LOAD SENT ────────────────────────────────────────────────────────────────
+async function loadSentTransfers() {
+  if (!contract || !userAddress) return;
+  const el = document.getElementById('sentList');
+  el.innerHTML = loadingHTML();
+
+  try {
+    const ids = await contract.getTransfersBySender(userAddress);
+    document.getElementById('walletSent').textContent = ids.length;
+
+    if (ids.length === 0) {
+      el.innerHTML = emptyHTML('sent');
+      return;
+    }
+
+    const transfers = await Promise.all(ids.map(id => contract.getTransfer(id)));
+    el.innerHTML = '';
+    const list = document.createElement('div');
+    list.className = 'transfer-list';
+    for (let i = ids.length - 1; i >= 0; i--) {
+      list.appendChild(await buildTransferCard(ids[i], transfers[i], 'sent'));
+    }
+    el.appendChild(list);
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error show">Failed to load transfers: ${e.message}</div>`;
+  }
+}
+
+// ─── LOAD RECEIVED ────────────────────────────────────────────────────────────
+async function loadReceivedTransfers() {
+  if (!contract || !userAddress) return;
+  const el = document.getElementById('receivedList');
+  el.innerHTML = loadingHTML();
+
+  try {
+    const ids = await contract.getTransfersByRecipient(userAddress);
+    document.getElementById('walletReceived').textContent = ids.length;
+
+    if (ids.length === 0) {
+      el.innerHTML = emptyHTML('received');
+      return;
+    }
+
+    const transfers = await Promise.all(ids.map(id => contract.getTransfer(id)));
+    el.innerHTML = '';
+    const list = document.createElement('div');
+    list.className = 'transfer-list';
+    for (let i = ids.length - 1; i >= 0; i--) {
+      list.appendChild(await buildTransferCard(ids[i], transfers[i], 'received'));
+    }
+    el.appendChild(list);
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error show">Failed to load transfers: ${e.message}</div>`;
+  }
+}
+
+// ─── LOOKUP ───────────────────────────────────────────────────────────────────
+async function lookupTransfer() {
+  const id = document.getElementById('lookupId').value;
+  const el = document.getElementById('lookupResult');
+  if (id === '') { el.innerHTML = ''; return; }
+  el.innerHTML = loadingHTML();
+
+  try {
+    const readContract = contract || new ethers.Contract(CONTRACT_ADDRESS, ABI,
+      new ethers.JsonRpcProvider(RPC_URL));
+    const t = await readContract.getTransfer(id);
+    el.innerHTML = '';
+    el.appendChild(await buildTransferCard(id, t, 'lookup'));
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error show">Transfer not found or invalid ID</div>`;
+  }
+}
+
+// ─── BUILD CARD ───────────────────────────────────────────────────────────────
+async function buildTransferCard(id, t, mode) {
+  // Support both named returns and positional
+  const sender     = t.sender     || t[1];
+  const recipient  = t.recipient  || t[2];
+  const gross      = t.grossAmount|| t[3];
+  const net        = t.netAmount  || t[4];
+  const fee        = t.fee        || t[5];
+  const unlockTime = t.unlockTime || t[6];
+  const createdAt  = t.createdAt  || t[7];
+  const status     = t.status     !== undefined ? t.status : t[8];
+
+  const statusNum   = Number(status);
+  const unlockDate  = new Date(Number(unlockTime) * 1000);
+  const now         = Date.now();
+  const unlocked    = unlockDate.getTime() < now;
+
+  let timeDisplay = '';
+  if (statusNum === 0 && !unlocked) {
+    const secs = Math.floor((unlockDate.getTime() - now) / 1000);
+    timeDisplay = formatDuration(secs);
+  } else if (statusNum === 0 && unlocked) {
+    timeDisplay = 'Unlocked — ready to claim';
+  } else if (statusNum === 1) {
+    timeDisplay = 'Claimed';
+  } else {
+    timeDisplay = 'Cancelled';
+  }
+
+  const card = document.createElement('div');
+  card.className = 'transfer-card';
+
+  card.innerHTML = `
+    <div class="transfer-header">
+      <div>
+        <div style="font-size:13px;color:var(--text);margin-bottom:2px;">Transfer #${id}</div>
+        <div class="addr">Created ${new Date(Number(createdAt)*1000).toLocaleDateString()}</div>
+      </div>
+      <span class="status-badge ${STATUS_CLASS[statusNum] || ''}">${STATUS_LABELS[statusNum] || 'Unknown'}</span>
+    </div>
+    <div class="transfer-meta">
+      <div>
+        <div class="meta-label">Net Amount</div>
+        <div class="meta-value hl">${parseFloat(ethers.formatEther(net)).toFixed(6)} OZONE</div>
+      </div>
+      <div>
+        <div class="meta-label">Fee Paid</div>
+        <div class="meta-value" style="color:var(--err)">${parseFloat(ethers.formatEther(fee)).toFixed(6)} OZONE</div>
+      </div>
+      <div>
+        <div class="meta-label">Unlock Date</div>
+        <div class="meta-value">${unlockDate.toLocaleDateString()} ${unlockDate.toLocaleTimeString()}</div>
+      </div>
+      <div>
+        <div class="meta-label">${statusNum === 0 && !unlocked ? 'Remaining' : 'Status'}</div>
+        <div class="meta-value" style="${statusNum === 0 && unlocked ? 'color:var(--accent)' : ''}">${timeDisplay}</div>
+      </div>
+      <div>
+        <div class="meta-label">Sender</div>
+        <div class="meta-value addr">${shortAddr(sender)}</div>
+      </div>
+      <div>
+        <div class="meta-label">Recipient</div>
+        <div class="meta-value addr">${shortAddr(recipient)}</div>
+      </div>
+    </div>
+    <div class="transfer-actions" id="actions-${id}">
+      ${buildActions(id, statusNum, unlocked, mode)}
+    </div>
+    <div class="alert" id="alert-${id}"></div>
+  `;
+
+  return card;
+}
+
+function buildActions(id, statusNum, unlocked, mode) {
+  if (statusNum !== 0) return '';
+  let html = `<a href="${EXPLORER}/address/${CONTRACT_ADDRESS}" target="_blank" class="btn btn-ghost btn-sm">View on OzoneScan ↗</a>`;
+  if (unlocked && (mode === 'received' || mode === 'lookup')) {
+    html += `<button class="btn btn-success btn-sm" onclick="claimTransfer(${id}, event)">Claim OZONE</button>`;
+  }
+  if (!unlocked && (mode === 'sent' || mode === 'lookup')) {
+    html += `<button class="btn btn-danger btn-sm" onclick="cancelTransfer(${id}, event)">Cancel & Refund</button>`;
+  }
+  return html;
+}
+
+// ─── CLAIM ────────────────────────────────────────────────────────────────────
+async function claimTransfer(id, event) {
+  if (!contract) { alert('Connect wallet first'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Confirming…`;
+  try {
+    const tx = await contract.claimTransfer(id);
+    btn.innerHTML = `<span class="spinner"></span> Waiting…`;
+    const r = await tx.wait();
+    showAlert(`alert-${id}`,
+      `Claimed successfully. <a href="${EXPLORER}/tx/${r.hash}" target="_blank" class="tx-link">View transaction ↗</a>`,
+      'success'
+    );
+    loadStats();
+    loadReceivedTransfers();
+  } catch(e) {
+    showAlert(`alert-${id}`, parseError(e), 'error');
+    btn.disabled = false;
+    btn.textContent = 'Claim OZONE';
+  }
+}
+
+// ─── CANCEL ───────────────────────────────────────────────────────────────────
+async function cancelTransfer(id, event) {
+  if (!contract) { alert('Connect wallet first'); return; }
+  if (!confirm('Cancel this transfer? You will receive back 99% — the 1% fee is non-refundable.')) return;
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Confirming…`;
+  try {
+    const tx = await contract.cancelTransfer(id);
+    btn.innerHTML = `<span class="spinner"></span> Waiting…`;
+    const r = await tx.wait();
+    showAlert(`alert-${id}`,
+      `Cancelled. Refund sent. <a href="${EXPLORER}/tx/${r.hash}" target="_blank" class="tx-link">View transaction ↗</a>`,
+      'success'
+    );
+    loadStats();
+    loadSentTransfers();
+  } catch(e) {
+    showAlert(`alert-${id}`, parseError(e), 'error');
+    btn.disabled = false;
+    btn.textContent = 'Cancel & Refund';
+  }
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function switchTab(panelId, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(panelId).classList.add('active');
+  btn.classList.add('active');
+}
+
+function showAlert(id, msg, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = `alert alert-${type} show`;
+  el.innerHTML = msg;
+  setTimeout(() => el.classList.remove('show'), 9000);
+}
+
+function shortAddr(addr) {
+  if (!addr || addr === '0x0000000000000000000000000000000000000000') return '—';
+  return addr.slice(0, 6) + '…' + addr.slice(-4);
+}
+
+function formatDuration(secs) {
+  if (secs <= 0) return 'Unlocked';
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m ${secs % 60}s`;
+}
+
+function parseError(e) {
+  if (e?.reason) return e.reason;
+  if (e?.message?.includes('user rejected')) return 'Transaction rejected.';
+  if (e?.message?.includes('insufficient funds')) return 'Insufficient OZONE balance.';
+  if (e?.message?.includes('execution reverted')) return 'Transaction reverted. Check conditions.';
+  return e?.message || 'Transaction failed.';
+}
+
+function loadingHTML() {
+  return `<div class="empty-state"><div class="empty-text" style="display:flex;align-items:center;gap:8px;justify-content:center;"><span class="spinner" style="border-color:rgba(107,114,128,0.3);border-top-color:var(--muted);"></span> Loading…</div></div>`;
+}
+
+function emptyHTML(type) {
+  const icons = {
+    sent: `<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 29L30 6" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round"/><path d="M30 6H14M30 6V22" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    received: `<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 6L6 30" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round"/><path d="M6 30H22M6 30V14" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  };
+  const msgs = { sent: 'No transfers sent yet', received: 'No incoming transfers yet' };
+  return `<div class="empty-state"><div class="empty-icon">${icons[type] || ''}</div><div class="empty-text">${msgs[type] || 'Nothing here'}</div></div>`;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  // Read-only stats
+  try {
+    const ro = new ethers.JsonRpcProvider(RPC_URL);
+    const rc = new ethers.Contract(CONTRACT_ADDRESS, ABI, ro);
+    const [total, bal] = await Promise.all([rc.totalTransfers(), rc.contractBalance()]);
+    document.getElementById('statTotal').textContent = total.toString();
+    document.getElementById('statBalance').textContent =
+      parseFloat(ethers.formatEther(bal)).toFixed(2);
+  } catch(e) {}
+
+  // Set datetime min to now
+  const dt = document.getElementById('unlockTime');
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  dt.min = now.toISOString().slice(0, 16);
+});
+</script>
+</body>
+</html>
