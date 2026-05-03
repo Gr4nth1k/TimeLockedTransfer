@@ -248,12 +248,16 @@
     /* ── MAIN LAYOUT ── */
     .main-section { padding: 16px 0 80px; }
 
-    .main-grid {
-      display: grid;
-      grid-template-columns: 1fr 300px;
-      gap: 20px;
-      align-items: start;
-    }
+
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+.main-grid > div:first-child { order: 1; }
 
     /* ── TABS ── */
     .tabs {
@@ -630,26 +634,62 @@
     .addr { font-size: 11px; color: var(--muted); }
 
     /* ── RESPONSIVE ── */
-    @media (max-width: 800px) {
-      .main-grid { grid-template-columns: 1fr; }
-      .sidebar { order: -1; }
-      .input-row { grid-template-columns: 1fr; }
-    }
+@media (max-width: 1080px) {
+  .main-grid { grid-template-columns: 1fr 260px; }
+}
 
-    @media (max-width: 600px) {
-      .hero { padding: 48px 0 40px; }
-      .nav-links { display: none; }
-      .hero-stats { flex-direction: row; }
-      .stat { min-width: 90px; padding: 14px 12px; }
-      .steps { grid-template-columns: 1fr 1fr; }
-      .card { padding: 18px; }
-      .footer-inner { flex-direction: column; align-items: flex-start; }
-    }
+@media (max-width: 800px) {
+  .main-grid { grid-template-columns: 1fr; }
+  .sidebar { order: 2; }
+  .input-row { grid-template-columns: 1fr; }
+  .hero { padding: 48px 0 36px; }
+  .steps { grid-template-columns: 1fr 1fr; }
+}
 
-    @media (max-width: 380px) {
-      .steps { grid-template-columns: 1fr; }
-      .tab { min-width: 90px; font-size: 11px; }
-    }
+@media (max-width: 600px) {
+  .hero { padding: 36px 0 28px; }
+  .nav-links { display: none; }
+  .hero-stats { flex-direction: row; }
+  .stat { min-width: 80px; padding: 12px 10px; }
+  .stat-val { font-size: 1.2rem; }
+  .card { padding: 16px; }
+  .card-title { font-size: 1rem; }
+  .tabs { padding: 3px; gap: 1px; }
+  .tab { min-width: 72px; padding: 8px 8px; font-size: 11px; gap: 4px; }
+  .tab svg { display: none; }
+  .transfer-meta { grid-template-columns: 1fr 1fr; }
+  .footer-inner { flex-direction: column; align-items: flex-start; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .how-section { margin-top: 48px; }
+  .main-section { padding: 12px 0 60px; }
+  .info-card { padding: 14px 16px; }
+  h1 { font-size: clamp(1.9rem, 8vw, 3rem); letter-spacing: -0.5px; }
+  .hero-sub { font-size: 12px; margin-bottom: 28px; }
+}
+
+@media (max-width: 420px) {
+  .container { padding: 0 14px; }
+  .tab { min-width: 60px; font-size: 10px; padding: 7px 6px; }
+  .steps { grid-template-columns: 1fr; }
+  .hero-stats { flex-wrap: wrap; }
+  .stat { min-width: 50%; border-right: none; border-bottom: 1px solid var(--border); }
+  .stat:nth-child(odd) { border-right: 1px solid var(--border); }
+  .stat:last-child { border-bottom: none; }
+  .transfer-meta { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn-sm { font-size: 10px; padding: 5px 10px; }
+  .card { padding: 14px; }
+  .input-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 360px) {
+  .tab span { display: none; }
+  .tab::after {
+    content: attr(data-short);
+    font-size: 10px;
+  }
+  h1 { font-size: 1.7rem; }
+  .hero-badge { font-size: 10px; padding: 4px 10px; }
+}
   </style>
 </head>
 <body>
@@ -861,7 +901,7 @@
         </div>
 
         <!-- SIDEBAR -->
-        <div class="sidebar" id="my-transfers">
+<div class="sidebar" id="my-transfers" style="order:2">
 
           <div class="info-card">
             <div class="info-card-title">Contract Details</div>
@@ -869,7 +909,7 @@
             <div class="info-row"><span class="key">Chain ID</span><span class="val">10121</span></div>
             <div class="info-row"><span class="key">Service Fee</span><span class="val">1% per transfer</span></div>
             <div class="info-row"><span class="key">Max Lock</span><span class="val">5 years</span></div>
-            <div class="info-row"><span class="key">Gas</span><span class="val">1 Gwei</span></div>
+            <div class="info-row"><span class="key">Gas</span><span class="val">0.8 Gwei</span></div>
             <div class="info-row"><span class="key">Verified</span><span class="val accent">OzoneScan ✓</span></div>
             <div style="margin-top:14px;">
               <a href="https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1" target="_blank" class="btn btn-ghost btn-full" style="font-size:12px;padding:10px;">
