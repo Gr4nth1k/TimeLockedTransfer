@@ -1006,6 +1006,53 @@ let provider, signer, contract, userAddress;
 const STATUS_LABELS = ['Pending', 'Claimed', 'Cancelled'];
 const STATUS_CLASS  = ['status-pending', 'status-claimed', 'status-cancelled'];
 
+// ─── IST HELPERS ─────────────────────────────────────────────────────────────
+/**
+ * Format any JS timestamp (ms) to a human-readable IST string.
+ * e.g. "12 May 2025, 3:45 PM IST"
+ */
+function formatToIST(ms) {
+  const date = new Date(ms);
+  return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }) + ' IST';
+}
+
+/**
+ * Return the current IST time as a string suitable for
+ * <input type="datetime-local"> min attribute (YYYY-MM-DDTHH:MM),
+ * expressed in IST so the browser's local picker aligns correctly.
+ *
+ * Note: datetime-local inputs always reflect the user's system clock.
+ * We compute the IST "now" string so that when we validate on submit
+ * we compare apples-to-apples against an IST-aware threshold.
+ */
+function nowInISTForInput() {
+  // IST is UTC+5:30 → offset = 5.5 hours in ms
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const utcNow = Date.now();
+  const istNow = new Date(utcNow + IST_OFFSET_MS);
+  // Format as YYYY-MM-DDTHH:MM (datetime-local format, no seconds)
+  return istNow.toISOString().slice(0, 16);
+}
+
+/**
+ * Parse the value of a datetime-local input as IST and return a Unix
+ * timestamp (seconds). The browser gives us a naive "YYYY-MM-DDTHH:MM"
+ * string — we append the IST offset so the Date constructor treats it
+ * as IST rather than local time.
+ */
+function parseISTDatetimeInput(value) {
+  // Append IST offset "+05:30" so Date parses it as IST
+  return Math.floor(new Date(value + ':00+05:30').getTime() / 1000);
+}
+
 // ─── WALLET ───────────────────────────────────────────────────────────────────
 async function connectWallet() {
   if (!window.ethereum) {
@@ -1131,11 +1178,12 @@ async function scheduleTransfer() {
   }
 
   const amount     = parseFloat(amountStr);
-  const unlockTime = Math.floor(new Date(unlockDT).getTime() / 1000);
+  // Parse the datetime-local value as IST
+  const unlockTime = parseISTDatetimeInput(unlockDT);
   const now        = Math.floor(Date.now() / 1000);
 
   if (unlockTime <= now) {
-    showAlert('scheduleAlert', 'Unlock time must be in the future', 'error'); return;
+    showAlert('scheduleAlert', 'Unlock time must be in the future (IST)', 'error'); return;
   }
   if (unlockTime > now + 5 * 365 * 24 * 3600) {
     showAlert('scheduleAlert', 'Unlock time cannot exceed 5 years', 'error'); return;
@@ -1258,13 +1306,13 @@ async function buildTransferCard(id, t, mode) {
   const status     = t.status     !== undefined ? t.status : t[8];
 
   const statusNum   = Number(status);
-  const unlockDate  = new Date(Number(unlockTime) * 1000);
+  const unlockMs    = Number(unlockTime) * 1000;
   const now         = Date.now();
-  const unlocked    = unlockDate.getTime() < now;
+  const unlocked    = unlockMs < now;
 
   let timeDisplay = '';
   if (statusNum === 0 && !unlocked) {
-    const secs = Math.floor((unlockDate.getTime() - now) / 1000);
+    const secs = Math.floor((unlockMs - now) / 1000);
     timeDisplay = formatDuration(secs);
   } else if (statusNum === 0 && unlocked) {
     timeDisplay = 'Unlocked — ready to claim';
@@ -1281,7 +1329,7 @@ async function buildTransferCard(id, t, mode) {
     <div class="transfer-header">
       <div>
         <div style="font-size:13px;color:var(--text);margin-bottom:2px;">Transfer #${id}</div>
-        <div class="addr">Created ${new Date(Number(createdAt)*1000).toLocaleDateString()}</div>
+        <div class="addr">Created ${formatToIST(Number(createdAt) * 1000)}</div>
       </div>
       <span class="status-badge ${STATUS_CLASS[statusNum] || ''}">${STATUS_LABELS[statusNum] || 'Unknown'}</span>
     </div>
@@ -1295,8 +1343,8 @@ async function buildTransferCard(id, t, mode) {
         <div class="meta-value" style="color:var(--err)">${parseFloat(ethers.formatEther(fee)).toFixed(6)} OZONE</div>
       </div>
       <div>
-        <div class="meta-label">Unlock Date</div>
-        <div class="meta-value">${unlockDate.toLocaleDateString()} ${unlockDate.toLocaleTimeString()}</div>
+        <div class="meta-label">Unlock Date (IST)</div>
+        <div class="meta-value">${formatToIST(unlockMs)}</div>
       </div>
       <div>
         <div class="meta-label">${statusNum === 0 && !unlocked ? 'Remaining' : 'Status'}</div>
@@ -1443,11 +1491,19 @@ window.addEventListener('load', async () => {
       parseFloat(ethers.formatEther(bal)).toFixed(2);
   } catch(e) {}
 
-  // Set datetime min to now
+  // Set datetime-local min to current IST time
+  // This ensures the picker's earliest selectable value corresponds to "now" in IST
   const dt = document.getElementById('unlockTime');
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  dt.min = now.toISOString().slice(0, 16);
+  dt.min = nowInISTForInput();
+
+  // Add a small hint label next to the input if one doesn't already exist
+  if (dt && !document.getElementById('unlockTimeIST')) {
+    const hint = document.createElement('small');
+    hint.id = 'unlockTimeIST';
+    hint.style.cssText = 'display:block;margin-top:4px;color:var(--muted,#6b7280);font-size:12px;';
+    hint.textContent = 'All times are in IST (UTC+5:30)';
+    dt.parentNode.insertBefore(hint, dt.nextSibling);
+  }
 });
 </script>
 </body>
