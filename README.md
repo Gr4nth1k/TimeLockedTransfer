@@ -17,7 +17,7 @@
 <br/>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-5de0c8.svg?style=flat-square)](https://choosealicense.com/licenses/mit/)
-[![Network](https://img.shields.io/badge/Network-Ozone%20Mainnet-a78bfa?style=flat-square)](https://ozonechain.io)
+[![Network](https://img.shields.io/badge/Network-Ozone%20Mainnet-a78bfa?style=flat-square)](https://ozonechain.com)
 [![Chain ID](https://img.shields.io/badge/Chain%20ID-10121-5de0c8?style=flat-square)](https://ozonescan.com)
 [![Contract](https://img.shields.io/badge/Contract-Verified-00c896?style=flat-square)](https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.20-363636?style=flat-square&logo=solidity)](https://soliditylang.org)
@@ -25,7 +25,7 @@
 
 <br/>
 
-[**→ Live App**](https://yourdomain.com) · [**→ Contract on OzoneScan**](https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1) · [**→ Ozone Chain**](https://ozonechain.io)
+[**→ Live App**](https://yourdomain.com) · [**→ Contract on OzoneScan**](https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1) · [**→ Ozone Chain**](https://ozonechain.com)
 
 <br/>
 
@@ -207,9 +207,9 @@ Add **Ozone Mainnet** to MetaMask manually if not already added:
 | Field | Value |
 |---|---|
 | Network Name | Ozone Mainnet |
-| RPC URL | `https://node1.ozonechain.io` |
+| RPC URL | `chain.ozonescan.com` |
 | Chain ID | `10121` |
-| Currency Symbol | `OZONE` |
+| Currency Symbol (Ticker) | `OZONE` |
 | Block Explorer | `https://ozonescan.com` |
 
 Or click **Switch Network** in the app — it will add it automatically.
@@ -280,7 +280,7 @@ timelocked-transfer/
 |---|---|
 | Live App | https://yourdomain.com |
 | Contract | https://ozonescan.com/address/0x8554671dd57e80254D5827e97aF5CA73A5b2EBE1 |
-| Ozone Chain | https://ozonechain.io |
+| Ozone Chain | https://ozonechain.com |
 | OzoneScan | https://ozonescan.com |
 | Ozone Staking | https://staking.ozonescan.com |
 
@@ -290,6 +290,6 @@ timelocked-transfer/
 
 <div align="center">
 
-MIT License · Built on [Ozone Mainnet](https://ozonechain.io) · Contract verified on [OzoneScan](https://ozonescan.com)
+MIT License · Built on [Ozone Mainnet](https://ozonechain.com) · Contract verified on [OzoneScan](https://ozonescan.com)
 
 </div>
